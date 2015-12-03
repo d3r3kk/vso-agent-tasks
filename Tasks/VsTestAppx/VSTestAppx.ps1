@@ -132,7 +132,7 @@ $codeCoverage = Convert-String $codeCoverageEnabled Boolean
 
 if($testAssemblyFiles)
 {
-    if ($runTestsIndividually)
+    if ($runTestsIndividually -eq "True")
     {
         Write-Verbose -Verbose "Calling Invoke-VSTest for each test assembly given, one at a time"
     }
@@ -165,7 +165,7 @@ if($testAssemblyFiles)
     $defaultCpuCount = "0"    
     $runSettingsFileWithParallel = [string](SetupRunSettingsFileForParallel $runInParallel $runSettingsFile $defaultCpuCount)
     
-    if ($runTestsIndividually)
+    if ($runTestsIndividually -eq "True")
     {
         $testAssemblyFiles | ForEach-Object {
             $singleTestAssemblyFile = $PSItem 
