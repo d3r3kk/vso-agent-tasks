@@ -86,7 +86,7 @@ function SetupRunSettingsFileForParallel($runInParallelFlag, $runSettingsFilePat
 }
 
 
-Write-Verbose "Entering script VSTestConsole.ps1"
+Write-Verbose "Entering script VSTestAppx2.ps1"
 
 # Import the Task.Common and Task.Internal dll that has all the cmdlets we need for Build
 import-module "Microsoft.TeamFoundation.DistributedTask.Task.Internal"
@@ -120,7 +120,7 @@ if ($testAssembly.Contains("*") -Or $testAssembly.Contains("?"))
     Write-Verbose "Pattern found in solution parameter. Calling Find-Files."
     Write-Verbose "Calling Find-Files with pattern: $testAssembly"    
     $testAssemblyFiles = Find-Files -SearchPattern $testAssembly -RootFolder $sourcesDirectory
-    Write-Verbose "Found files: $testAssemblyFiles"
+    Write-Verbose -Verbose "Found files: $testAssemblyFiles"
 }
 else
 {
@@ -158,8 +158,24 @@ if($testAssemblyFiles)
     $defaultCpuCount = "0"    
     $runSettingsFileWithParallel = [string](SetupRunSettingsFileForParallel $runInParallel $runSettingsFile $defaultCpuCount)
     
-    Invoke-VSTest -TestAssemblies $testAssemblyFiles -VSTestVersion $vsTestVersion -TestFiltercriteria $testFiltercriteria -RunSettingsFile $runSettingsFileWithParallel -PathtoCustomTestAdapters $pathtoCustomTestAdapters -CodeCoverageEnabled $codeCoverage -OverrideTestrunParameters $overrideTestrunParameters -OtherConsoleOptions $otherConsoleOptions -WorkingFolder $workingDirectory -TestResultsFolder $testResultsDirectory -SourcesDirectory $sourcesDirectory
+    # Remove .appx files and store them for a moment. We'll have to run them separately, each one a separate run of vstest (appx unit tests cannot be specified as a list)
+    $tafdll = $testAssemblyFiles | Where-Object -FilterScript { $_ -notmatch '.*\.appx.*' }
+    $tafapx = $testAssemblyFiles | Where-Object -FilterScript { $_ -match '.*\.appx.*' }
+    
+    Invoke-VSTest -TestAssemblies $tafdll -VSTestVersion $vsTestVersion -TestFiltercriteria $testFiltercriteria -RunSettingsFile $runSettingsFileWithParallel -PathtoCustomTestAdapters $pathtoCustomTestAdapters -CodeCoverageEnabled $codeCoverage -OverrideTestrunParameters $overrideTestrunParameters -OtherConsoleOptions $otherConsoleOptions -WorkingFolder $workingDirectory -TestResultsFolder $testResultsDirectory -SourcesDirectory $sourcesDirectory
 
+    $tafapx | ForEach-Object {
+        
+        $apxTest = $PSItem
+        Write-Verbose -Verbose "Running Appx test assembly '$apxTest'"
+        $otherConsoleOptionsEx = $otherConsoleOptions
+        if (-not $otherConsoleOptionsEx.Contains('/InIsolation'))
+        {
+            $otherConsoleOptionsEx += " /InIsolation"
+        }
+        Invoke-VSTest -TestAssemblies $apxTest -VSTestVersion $vsTestVersion -TestFiltercriteria $testFiltercriteria -RunSettingsFile $runSettingsFileWithParallel -PathtoCustomTestAdapters $pathtoCustomTestAdapters -CodeCoverageEnabled $codeCoverage -OverrideTestrunParameters $overrideTestrunParameters -OtherConsoleOptions $otherConsoleOptionsEx -WorkingFolder $workingDirectory -TestResultsFolder $testResultsDirectory -SourcesDirectory $sourcesDirectory
+    }
+    
     $resultFiles = Find-Files -SearchPattern "*.trx" -RootFolder $testResultsDirectory 
 
     $publishResultsOption = Convert-String $publishRunAttachments Boolean
@@ -219,4 +235,4 @@ else
     Write-Warning "No test assemblies found matching the pattern: $testAssembly"
 }
 
-Write-Verbose "Leaving script VSTestConsole.ps1"
+Write-Verbose "Leaving script VSTestAppx2.ps1"

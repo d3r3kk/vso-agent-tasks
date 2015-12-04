@@ -1,8 +1,8 @@
 {
-  "id": "EF087383-EE5E-42C7-9A53-AB56C98420F9",
-  "name": "VSTest",
-  "friendlyName": "Visual Studio Test",
-  "description": "Run tests with Visual Studio test runner",
+  "id": "E3055E0F-AAA0-4CA3-993C-4DEC0D92190B",
+  "name": "VSTestAppx2",
+  "friendlyName": "Visual Studio Test Appx2",
+  "description": "Run tests with Visual Studio test runner for dlls as well as Appx tests",
   "helpMarkDown": "[More Information](http://go.microsoft.com/fwlink/?LinkId=624539)",
   "category": "Test",
   "visibility": [
@@ -13,7 +13,7 @@
   "version": {
     "Major": 1,
     "Minor": 0,
-    "Patch": 25
+    "Patch": 0
   },
   "demands": [
     "vstest"
@@ -40,10 +40,10 @@
     {
       "name": "testAssembly",
       "type": "string",
-      "label": "Test Assembly",
-      "defaultValue": "**\\*test*.dll;-:**\\obj\\**",
+      "label": "Test Assemblies/Packages",
+      "defaultValue": "**\\*test*.dll;**\\*test*.appx;-:**\\obj\\**",
       "required": true,
-      "helpMarkDown": "Test binaries to run tests on.  Wildcards can be used.  For example, `**\\*test*.dll;-:**\\obj\\**` for all dlls with test in name while excluding files in any sub-directory named obj.",
+      "helpMarkDown": "Test binaries to run tests on.  Wildcards can be used.  For example, `**\\*test*.dll;**\\*test*.appx;-:**\\obj\\**` for all dlls and/or appx container files with test in name while excluding files in any sub-directory named obj.",
       "groupName": "executionOptions"
     },
     {
@@ -163,7 +163,7 @@
   "instanceNameFormat": "Test Assemblies $(testAssembly)",
   "execution": {
     "PowerShell": {
-      "target": "$(currentDirectory)\\VSTest.ps1",
+      "target": "$(currentDirectory)\\VSTestAppx2.ps1",
       "argumentFormat": "",
       "workingDirectory": "$(currentDirectory)"
     }
