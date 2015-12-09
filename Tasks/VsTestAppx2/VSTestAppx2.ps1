@@ -29,7 +29,7 @@ Write-Verbose "platform = $platform"
 Write-Verbose "configuration = $configuration"
 Write-Verbose "publishRunAttachments = $publishRunAttachments"
 Write-Verbose "runInParallel = $runInParallel"
-Write-Verbose "skipConfigurationPlatform = $skipConfigurationPlatform
+Write-Verbose "skipConfigurationPlatform = $skipConfigurationPlatform"
 
 
 function CmdletHasMember($memberName) {
@@ -115,12 +115,12 @@ $skipConfigurationPlatform -split ',' | ForEach-Object {
 
 if ($skipTestsForThisConfigPlat)
 {
-    Write-Host "Skipping this Configuration Platform combination as per the 'Skip Configuration|Platform' setting."
-    Write-Verbose "Skipping Platform|Configuration = $_"
+    Write-Host "Skipping this Configuration|Platform combination as per the 'Skip Configuration|Platform' setting."
+    Write-Verbose "Skipping Configuration|Platform = $configuration|$platform"
 }
 else
 {
-    Write-Verbose "Testing Platform|Configuration = $_"
+    Write-Verbose "Testing Platform|Configuration = $configuration|$platform"
     
     # Import the Task.Common and Task.Internal dll that has all the cmdlets we need for Build
     import-module "Microsoft.TeamFoundation.DistributedTask.Task.Internal"
