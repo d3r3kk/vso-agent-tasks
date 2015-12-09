@@ -16,7 +16,22 @@ param(
     [string]$skipConfigurationPlatform
 )
 
-    
+Write-Verbose "vsTestVersion = $vsTestVersion"
+Write-Verbose "testAssembly = $testAssembly"
+Write-Verbose "testFiltercriteria = $testFiltercriteria"
+Write-Verbose "runSettingsFile = $runSettingsFile"
+Write-Verbose "codeCoverageEnabled = $codeCoverageEnabled"
+Write-Verbose "pathtoCustomTestAdapters = $pathtoCustomTestAdapters"
+Write-Verbose "overrideTestrunParameters = $overrideTestrunParameters"
+Write-Verbose "otherConsoleOptions = $otherConsoleOptions"
+Write-Verbose "testRunTitle = $testRunTitle"
+Write-Verbose "platform = $platform"
+Write-Verbose "configuration = $configuration"
+Write-Verbose "publishRunAttachments = $publishRunAttachments"
+Write-Verbose "runInParallel = $runInParallel"
+Write-Verbose "skipConfigurationPlatform = $skipConfigurationPlatform
+
+
 function CmdletHasMember($memberName) {
     $publishParameters = (gcm Publish-TestResults).Parameters.Keys.Contains($memberName) 
     return $publishParameters
@@ -94,7 +109,7 @@ Write-Verbose "Entering script VSTestAppx2.ps1"
 Write-Verbose "Checking if Config:$configuration and Platform:$platform is in the list of skip-combos '$skipConfigurationPlatform'"
 $skipTestsForThisConfigPlat = $false
 $skipConfigurationPlatform -split ',' | ForEach-Object {
-    $skipTestsForThisConfigPlat = $skipTestsForThisConfigPlat -or ("$configuration|$platform" -imatch $_)
+    $skipTestsForThisConfigPlat = $skipTestsForThisConfigPlat -or ("$configuration|$platform" -ieq $_)
     Write-Verbose "'$configuration|$platform' -imatch '$_' == $skipTestsForThisConfigPlat"
 }
 
