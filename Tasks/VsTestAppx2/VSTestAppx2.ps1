@@ -1,3 +1,4 @@
+[CmdletBinding()]
 param(
     [string]$vsTestVersion, 
     [string]$testAssembly,
@@ -90,9 +91,11 @@ function SetupRunSettingsFileForParallel($runInParallelFlag, $runSettingsFilePat
 Write-Verbose "Entering script VSTestAppx2.ps1"
 
 # Test to see if we need to do anything at all based on the skipConfigurationPlatform setting...
+Write-Verbose "Checking if Config:$configuration and Platform:$platform is in the list of skip-combos '$skipConfigurationPlatform'"
 $skipTestsForThisConfigPlat = $false
 $skipConfigurationPlatform -split ',' | ForEach-Object {
     $skipTestsForThisConfigPlat = $skipTestsForThisConfigPlat -or ("$configuration|$platform" -imatch $_)
+    Write-Verbose "'$configuration|$platform' -imatch '$_' == $skipTestsForThisConfigPlat"
 }
 
 if ($skipTestsForThisConfigPlat)
@@ -102,6 +105,8 @@ if ($skipTestsForThisConfigPlat)
 }
 else
 {
+    Write-Verbose "Testing Platform|Configuration = $_"
+    
     # Import the Task.Common and Task.Internal dll that has all the cmdlets we need for Build
     import-module "Microsoft.TeamFoundation.DistributedTask.Task.Internal"
     import-module "Microsoft.TeamFoundation.DistributedTask.Task.Common"
@@ -176,7 +181,10 @@ else
         $tafdll = $testAssemblyFiles | Where-Object -FilterScript { $_ -notmatch '.*\.appx.*' }
         $tafapx = $testAssemblyFiles | Where-Object -FilterScript { $_ -match '.*\.appx.*' }
         
-        Invoke-VSTest -TestAssemblies $tafdll -VSTestVersion $vsTestVersion -TestFiltercriteria $testFiltercriteria -RunSettingsFile $runSettingsFileWithParallel -PathtoCustomTestAdapters $pathtoCustomTestAdapters -CodeCoverageEnabled $codeCoverage -OverrideTestrunParameters $overrideTestrunParameters -OtherConsoleOptions $otherConsoleOptions -WorkingFolder $workingDirectory -TestResultsFolder $testResultsDirectory -SourcesDirectory $sourcesDirectory
+        if ($tafdll.Count -gt 0)
+        {
+            Invoke-VSTest -TestAssemblies $tafdll -VSTestVersion $vsTestVersion -TestFiltercriteria $testFiltercriteria -RunSettingsFile $runSettingsFileWithParallel -PathtoCustomTestAdapters $pathtoCustomTestAdapters -CodeCoverageEnabled $codeCoverage -OverrideTestrunParameters $overrideTestrunParameters -OtherConsoleOptions $otherConsoleOptions -WorkingFolder $workingDirectory -TestResultsFolder $testResultsDirectory -SourcesDirectory $sourcesDirectory
+        }
     
         $tafapx | ForEach-Object {
             
