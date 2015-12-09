@@ -124,6 +124,15 @@
       "groupName": "advancedExecutionOptions"
     },
     {
+      "name": "skipConfigurationPlatform",
+      "type": "string",
+      "label": "Skip Configuration|Platform",
+      "defaultValue": "",
+      "required": false,
+      "helpMarkDown": "Configuration|Platform combinations to skip running tests for, separated by commas (ie. Release|x86,Release|Any CPU).",
+      "groupName": "advancedExecutionOptions"
+    },
+    {
       "name": "testRunTitle", 
       "type": "string", 
       "label": "Test Run Title", 

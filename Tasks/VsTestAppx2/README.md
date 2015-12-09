@@ -33,4 +33,5 @@ For more information, please see http://blogs.msdn.com/b/visualstudioalm/archive
 
 - **Other console options:**	Other options that can be provided to vstest.console.exe. For example, if you are using vsix extensions, you can provide “/UseVsixExtensions:true”
 
+- **Skip Configuration Platform:**	If there are configuration|platform combinations that you need not run these tests against in a parallel build you can skip these tests by entering the combinations here. Combinations are added in the format: Configuration|Platform[,Configuration|Platform].   
 

@@ -11,7 +11,8 @@ param(
     [string]$platform,
     [string]$configuration,
     [string]$publishRunAttachments,
-    [string]$runInParallel
+    [string]$runInParallel,
+    [string]$skipConfigurationPlatform
 )
 
     
@@ -88,151 +89,165 @@ function SetupRunSettingsFileForParallel($runInParallelFlag, $runSettingsFilePat
 
 Write-Verbose "Entering script VSTestAppx2.ps1"
 
-# Import the Task.Common and Task.Internal dll that has all the cmdlets we need for Build
-import-module "Microsoft.TeamFoundation.DistributedTask.Task.Internal"
-import-module "Microsoft.TeamFoundation.DistributedTask.Task.Common"
-# Import the Task.TestResults dll that has the cmdlet we need for publishing results
-import-module "Microsoft.TeamFoundation.DistributedTask.Task.TestResults"
-
-if (!$testAssembly)
-{
-    Write-Host "##vso[task.logissue type=error;code=002001;]" 
-    throw (Get-LocalizedString -Key "Test assembly parameter not set on script")
+# Test to see if we need to do anything at all based on the skipConfigurationPlatform setting...
+$skipTestsForThisConfigPlat = $false
+$skipConfigurationPlatform -split ',' | ForEach-Object {
+    $skipTestsForThisConfigPlat = $skipTestsForThisConfigPlat -or ("$configuration|$platform" -imatch $_)
 }
 
-$sourcesDirectory = Get-TaskVariable -Context $distributedTaskContext -Name "Build.SourcesDirectory"
-if(!$sourcesDirectory)
+if ($skipTestsForThisConfigPlat)
 {
-    # For RM, look for the test assemblies under the release directory.
-    $sourcesDirectory = Get-TaskVariable -Context $distributedTaskContext -Name "Agent.ReleaseDirectory"
-}
-
-if(!$sourcesDirectory)
-{
-    # If there is still no sources directory, error out immediately.
-    Write-Host "##vso[task.logissue type=error;code=002002;]"
-    throw "No source directory found."
-}
-
-# check for solution pattern
-if ($testAssembly.Contains("*") -Or $testAssembly.Contains("?"))
-{
-    Write-Verbose "Pattern found in solution parameter. Calling Find-Files."
-    Write-Verbose "Calling Find-Files with pattern: $testAssembly"    
-    $testAssemblyFiles = Find-Files -SearchPattern $testAssembly -RootFolder $sourcesDirectory
-    Write-Verbose -Verbose "Found files: $testAssemblyFiles"
+    Write-Host "Skipping this Configuration Platform combination as per the 'Skip Configuration|Platform' setting."
+    Write-Verbose "Skipping Platform|Configuration = $_"
 }
 else
 {
-    Write-Verbose "No Pattern found in solution parameter."
-    $testAssemblyFiles = ,$testAssembly
-}
-
-$codeCoverage = Convert-String $codeCoverageEnabled Boolean
-
-if($testAssemblyFiles)
-{
-    Write-Verbose -Verbose "Calling Invoke-VSTest for all test assemblies"
-
-    if($vsTestVersion -eq "latest")
+    # Import the Task.Common and Task.Internal dll that has all the cmdlets we need for Build
+    import-module "Microsoft.TeamFoundation.DistributedTask.Task.Internal"
+    import-module "Microsoft.TeamFoundation.DistributedTask.Task.Common"
+    # Import the Task.TestResults dll that has the cmdlet we need for publishing results
+    import-module "Microsoft.TeamFoundation.DistributedTask.Task.TestResults"
+    
+    if (!$testAssembly)
     {
-        # null out vsTestVersion before passing to cmdlet so it will default to the latest on the machine.
-        $vsTestVersion = $null
+        Write-Host "##vso[task.logissue type=error;code=002001;]" 
+        throw (Get-LocalizedString -Key "Test assembly parameter not set on script")
     }
-
-    $artifactsDirectory = Get-TaskVariable -Context $distributedTaskContext -Name "System.ArtifactsDirectory" -Global $FALSE
-
-    $workingDirectory = $artifactsDirectory
-    $testResultsDirectory = $workingDirectory + "\" + "TestResults"
-
-    if($runInParallel -eq "True")
+    
+    $sourcesDirectory = Get-TaskVariable -Context $distributedTaskContext -Name "Build.SourcesDirectory"
+    if(!$sourcesDirectory)
     {
-        $rightVSVersionAvailable = IsVisualStudio2015Update1OrHigherInstalled $vsTestVersion
-        if(-Not $rightVSVersionAvailable)
+        # For RM, look for the test assemblies under the release directory.
+        $sourcesDirectory = Get-TaskVariable -Context $distributedTaskContext -Name "Agent.ReleaseDirectory"
+    }
+    
+    if(!$sourcesDirectory)
+    {
+        # If there is still no sources directory, error out immediately.
+        Write-Host "##vso[task.logissue type=error;code=002002;]"
+        throw "No source directory found."
+    }
+    
+    # check for solution pattern
+    if ($testAssembly.Contains("*") -Or $testAssembly.Contains("?"))
+    {
+        Write-Verbose "Pattern found in solution parameter. Calling Find-Files."
+        Write-Verbose "Calling Find-Files with pattern: $testAssembly"    
+        $testAssemblyFiles = Find-Files -SearchPattern $testAssembly -RootFolder $sourcesDirectory
+        Write-Verbose -Verbose "Found files: $testAssemblyFiles"
+    }
+    else
+    {
+        Write-Verbose "No Pattern found in solution parameter."
+        $testAssemblyFiles = ,$testAssembly
+    }
+    
+    $codeCoverage = Convert-String $codeCoverageEnabled Boolean
+    
+    if($testAssemblyFiles)
+    {
+        Write-Verbose -Verbose "Calling Invoke-VSTest for all test assemblies"
+    
+        if($vsTestVersion -eq "latest")
         {
-            Write-Warning "Install Visual Studio 2015 Update 1 or higher on your build agent machine to run the tests in parallel."
-            $runInParallel = "false"
+            # null out vsTestVersion before passing to cmdlet so it will default to the latest on the machine.
+            $vsTestVersion = $null
         }
-    }
     
-    $defaultCpuCount = "0"    
-    $runSettingsFileWithParallel = [string](SetupRunSettingsFileForParallel $runInParallel $runSettingsFile $defaultCpuCount)
+        $artifactsDirectory = Get-TaskVariable -Context $distributedTaskContext -Name "System.ArtifactsDirectory" -Global $FALSE
     
-    # Remove .appx files and store them for a moment. We'll have to run them separately, each one a separate run of vstest (appx unit tests cannot be specified as a list)
-    $tafdll = $testAssemblyFiles | Where-Object -FilterScript { $_ -notmatch '.*\.appx.*' }
-    $tafapx = $testAssemblyFiles | Where-Object -FilterScript { $_ -match '.*\.appx.*' }
+        $workingDirectory = $artifactsDirectory
+        $testResultsDirectory = $workingDirectory + "\" + "TestResults"
     
-    Invoke-VSTest -TestAssemblies $tafdll -VSTestVersion $vsTestVersion -TestFiltercriteria $testFiltercriteria -RunSettingsFile $runSettingsFileWithParallel -PathtoCustomTestAdapters $pathtoCustomTestAdapters -CodeCoverageEnabled $codeCoverage -OverrideTestrunParameters $overrideTestrunParameters -OtherConsoleOptions $otherConsoleOptions -WorkingFolder $workingDirectory -TestResultsFolder $testResultsDirectory -SourcesDirectory $sourcesDirectory
-
-    $tafapx | ForEach-Object {
-        
-        $apxTest = $PSItem
-        Write-Verbose -Verbose "Running Appx test assembly '$apxTest'"
-        $otherConsoleOptionsEx = $otherConsoleOptions
-        if (-not $otherConsoleOptionsEx.Contains('/InIsolation'))
+        if($runInParallel -eq "True")
         {
-            $otherConsoleOptionsEx += " /InIsolation"
-        }
-        Invoke-VSTest -TestAssemblies $apxTest -VSTestVersion $vsTestVersion -TestFiltercriteria $testFiltercriteria -RunSettingsFile $runSettingsFileWithParallel -PathtoCustomTestAdapters $pathtoCustomTestAdapters -CodeCoverageEnabled $codeCoverage -OverrideTestrunParameters $overrideTestrunParameters -OtherConsoleOptions $otherConsoleOptionsEx -WorkingFolder $workingDirectory -TestResultsFolder $testResultsDirectory -SourcesDirectory $sourcesDirectory
-    }
-    
-    $resultFiles = Find-Files -SearchPattern "*.trx" -RootFolder $testResultsDirectory 
-
-    $publishResultsOption = Convert-String $publishRunAttachments Boolean
-
-    if($resultFiles)
-    {
-        # Remove the below hack once the min agent version is updated to S91 or above
-    
-        $runTitleMemberExists = CmdletHasMember "RunTitle"
-        $publishRunLevelAttachmentsExists = CmdletHasMember "PublishRunLevelAttachments"
-        if($runTitleMemberExists)
-        {
-            if($publishRunLevelAttachmentsExists)
+            $rightVSVersionAvailable = IsVisualStudio2015Update1OrHigherInstalled $vsTestVersion
+            if(-Not $rightVSVersionAvailable)
             {
-                Publish-TestResults -Context $distributedTaskContext -TestResultsFiles $resultFiles -TestRunner "VSTest" -Platform $platform -Configuration $configuration -RunTitle $testRunTitle -PublishRunLevelAttachments $publishResultsOption
+                Write-Warning "Install Visual Studio 2015 Update 1 or higher on your build agent machine to run the tests in parallel."
+                $runInParallel = "false"
+            }
+        }
+        
+        $defaultCpuCount = "0"    
+        $runSettingsFileWithParallel = [string](SetupRunSettingsFileForParallel $runInParallel $runSettingsFile $defaultCpuCount)
+        
+        # Remove .appx files and store them for a moment. We'll have to run them separately, each one a separate run of vstest (appx unit tests cannot be specified as a list)
+        $tafdll = $testAssemblyFiles | Where-Object -FilterScript { $_ -notmatch '.*\.appx.*' }
+        $tafapx = $testAssemblyFiles | Where-Object -FilterScript { $_ -match '.*\.appx.*' }
+        
+        Invoke-VSTest -TestAssemblies $tafdll -VSTestVersion $vsTestVersion -TestFiltercriteria $testFiltercriteria -RunSettingsFile $runSettingsFileWithParallel -PathtoCustomTestAdapters $pathtoCustomTestAdapters -CodeCoverageEnabled $codeCoverage -OverrideTestrunParameters $overrideTestrunParameters -OtherConsoleOptions $otherConsoleOptions -WorkingFolder $workingDirectory -TestResultsFolder $testResultsDirectory -SourcesDirectory $sourcesDirectory
+    
+        $tafapx | ForEach-Object {
+            
+            $apxTest = $PSItem
+            Write-Verbose -Verbose "Running Appx test assembly '$apxTest'"
+            $otherConsoleOptionsEx = $otherConsoleOptions
+            if (-not $otherConsoleOptionsEx.Contains('/InIsolation'))
+            {
+                $otherConsoleOptionsEx += " /InIsolation"
+            }
+            Invoke-VSTest -TestAssemblies $apxTest -VSTestVersion $vsTestVersion -TestFiltercriteria $testFiltercriteria -RunSettingsFile $runSettingsFileWithParallel -PathtoCustomTestAdapters $pathtoCustomTestAdapters -CodeCoverageEnabled $codeCoverage -OverrideTestrunParameters $overrideTestrunParameters -OtherConsoleOptions $otherConsoleOptionsEx -WorkingFolder $workingDirectory -TestResultsFolder $testResultsDirectory -SourcesDirectory $sourcesDirectory
+        }
+        
+        $resultFiles = Find-Files -SearchPattern "*.trx" -RootFolder $testResultsDirectory 
+    
+        $publishResultsOption = Convert-String $publishRunAttachments Boolean
+    
+        if($resultFiles)
+        {
+            # Remove the below hack once the min agent version is updated to S91 or above
+        
+            $runTitleMemberExists = CmdletHasMember "RunTitle"
+            $publishRunLevelAttachmentsExists = CmdletHasMember "PublishRunLevelAttachments"
+            if($runTitleMemberExists)
+            {
+                if($publishRunLevelAttachmentsExists)
+                {
+                    Publish-TestResults -Context $distributedTaskContext -TestResultsFiles $resultFiles -TestRunner "VSTest" -Platform $platform -Configuration $configuration -RunTitle $testRunTitle -PublishRunLevelAttachments $publishResultsOption
+                }
+                else
+                {
+                    if(!$publishResultsOption)
+                    {
+                        Write-Warning "Update the build agent to be able to opt out of test run attachment upload."
+                    }
+                    Publish-TestResults -Context $distributedTaskContext -TestResultsFiles $resultFiles -TestRunner "VSTest" -Platform $platform -Configuration $configuration -RunTitle $testRunTitle
+                }
             }
             else
             {
-                if(!$publishResultsOption)
+                if($testRunTitle)
                 {
-                    Write-Warning "Update the build agent to be able to opt out of test run attachment upload."
+                    Write-Warning "Update the build agent to be able to use the custom run title feature."
                 }
-                Publish-TestResults -Context $distributedTaskContext -TestResultsFiles $resultFiles -TestRunner "VSTest" -Platform $platform -Configuration $configuration -RunTitle $testRunTitle
+                
+                if($publishRunLevelAttachmentsExists)		
+                {
+                    Publish-TestResults -Context $distributedTaskContext -TestResultsFiles $resultFiles -TestRunner "VSTest" -Platform $platform -Configuration $configuration -PublishRunLevelAttachments $publishResultsOption
+                }
+                else
+                {
+                    if(!$publishResultsOption)
+                    {
+                        Write-Warning "Update the build agent to be able to opt out of test run attachment upload."
+                    }
+                    Publish-TestResults -Context $distributedTaskContext -TestResultsFiles $resultFiles -TestRunner "VSTest" -Platform $platform -Configuration $configuration
+                }		
             }
         }
         else
         {
-            if($testRunTitle)
-            {
-                Write-Warning "Update the build agent to be able to use the custom run title feature."
-            }
-            
-            if($publishRunLevelAttachmentsExists)		
-            {
-                Publish-TestResults -Context $distributedTaskContext -TestResultsFiles $resultFiles -TestRunner "VSTest" -Platform $platform -Configuration $configuration -PublishRunLevelAttachments $publishResultsOption
-            }
-            else
-            {
-                if(!$publishResultsOption)
-                {
-                    Write-Warning "Update the build agent to be able to opt out of test run attachment upload."
-                }
-                Publish-TestResults -Context $distributedTaskContext -TestResultsFiles $resultFiles -TestRunner "VSTest" -Platform $platform -Configuration $configuration
-            }		
+            Write-Host "##vso[task.logissue type=warning;code=002003;]"
+            Write-Warning "No results found to publish."
         }
+        
     }
     else
     {
-        Write-Host "##vso[task.logissue type=warning;code=002003;]"
-        Write-Warning "No results found to publish."
+        Write-Host "##vso[task.logissue type=warning;code=002004;]"
+        Write-Warning "No test assemblies found matching the pattern: $testAssembly"
     }
     
 }
-else
-{
-    Write-Host "##vso[task.logissue type=warning;code=002004;]"
-    Write-Warning "No test assemblies found matching the pattern: $testAssembly"
-}
-
 Write-Verbose "Leaving script VSTestAppx2.ps1"

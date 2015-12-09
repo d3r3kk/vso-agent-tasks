@@ -127,6 +127,15 @@
       "groupName": "advancedExecutionOptions"
     },
     {
+      "name": "skipConfigurationPlatform",
+      "type": "string",
+      "label": "ms-resource:loc.input.label.skipConfigurationPlatform",
+      "defaultValue": "",
+      "required": false,
+      "helpMarkDown": "ms-resource:loc.input.help.skipConfigurationPlatform",
+      "groupName": "advancedExecutionOptions"
+    },
+    {
       "name": "testRunTitle",
       "type": "string",
       "label": "ms-resource:loc.input.label.testRunTitle",
