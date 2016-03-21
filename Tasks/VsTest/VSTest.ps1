@@ -12,7 +12,8 @@ param(
     [string]$platform,
     [string]$configuration,
     [string]$publishRunAttachments,
-    [string]$runInParallel
+    [string]$runInParallel,
+    [string]$runTestAssemblyExclusive
     )
 
 Write-Verbose "Entering script VSTest.ps1"
@@ -28,6 +29,9 @@ Write-Verbose "testRunTitle = $testRunTitle"
 Write-Verbose "platform = $platform"
 Write-Verbose "configuration = $configuration"
 Write-Verbose "publishRunAttachments = $publishRunAttachments"
+Write-Verbose "runInParallel = $runInParallel"
+Write-Verbose "runTestAssemblyExclusive = $runTestAssemblyExclusive"
+
 
 # Import the Task.Common and Task.Internal dll that has all the cmdlets we need for Build
 import-module "Microsoft.TeamFoundation.DistributedTask.Task.Internal"
@@ -77,6 +81,7 @@ else
 }
 
 $codeCoverage = Convert-String $codeCoverageEnabled Boolean
+$runTestsExclusive = Convert-String $runTestAssemblyExclusive Boolean
 
 if($testAssemblyFiles)
 {
@@ -91,24 +96,36 @@ if($testAssemblyFiles)
     $artifactsDirectory = Get-TaskVariable -Context $distributedTaskContext -Name "System.ArtifactsDirectory" -Global $FALSE
 
     $workingDirectory = $artifactsDirectory
-    $testResultsDirectory = $workingDirectory + [System.IO.Path]::DirectorySeparatorChar + "TestResults"
 
-    if($runInParallel -eq "True")
+    if ($runTestsExclusive)
     {
-        $rightVSVersionAvailable = IsVisualStudio2015Update1OrHigherInstalled $vsTestVersion
-        if(-Not $rightVSVersionAvailable)
-        {
-            Write-Warning (Get-LocalizedString -Key "Install Visual Studio 2015 Update 1 or higher on your build agent machine to run the tests in parallel.")
-            $runInParallel = "false"
-        }
+        $testAssemblyFiles = $testAssemblyFiles -split ';'
     }
     
-    $defaultCpuCount = "0"    
-    $runSettingsFileWithParallel = [string](SetupRunSettingsFileForParallel $runInParallel $runSettingsFile $defaultCpuCount)
-    
-    Invoke-VSTest -TestAssemblies $testAssemblyFiles -VSTestVersion $vsTestVersion -TestFiltercriteria $testFiltercriteria -RunSettingsFile $runSettingsFileWithParallel -PathtoCustomTestAdapters $pathtoCustomTestAdapters -CodeCoverageEnabled $codeCoverage -OverrideTestrunParameters $overrideTestrunParameters -OtherConsoleOptions $otherConsoleOptions -WorkingFolder $workingDirectory -TestResultsFolder $testResultsDirectory -SourcesDirectory $sourcesDirectory
+    $resultDirModifier = ""
+    $testAssemblyFiles | ForEach-Object {
 
-    $resultFiles = Find-Files -SearchPattern "*.trx" -RootFolder $testResultsDirectory 
+        
+        $testResultsDirectory = Join-Path -Path $workingDirectory -ChildPath "$($resultDirModifier)TestResults"
+        $resultDirModifier += "_"
+        
+        if($runInParallel -eq "True")
+        {
+            $rightVSVersionAvailable = IsVisualStudio2015Update1OrHigherInstalled $vsTestVersion
+            if(-Not $rightVSVersionAvailable)
+            {
+                Write-Warning (Get-LocalizedString -Key "Install Visual Studio 2015 Update 1 or higher on your build agent machine to run the tests in parallel.")
+                $runInParallel = "false"
+            }
+        }
+        
+        $defaultCpuCount = "0"    
+        $runSettingsFileWithParallel = [string](SetupRunSettingsFileForParallel $runInParallel $runSettingsFile $defaultCpuCount)
+        
+        Invoke-VSTest -TestAssemblies $testAssemblyFiles -VSTestVersion $vsTestVersion -TestFiltercriteria $testFiltercriteria -RunSettingsFile $runSettingsFileWithParallel -PathtoCustomTestAdapters $pathtoCustomTestAdapters -CodeCoverageEnabled $codeCoverage -OverrideTestrunParameters $overrideTestrunParameters -OtherConsoleOptions $otherConsoleOptions -WorkingFolder $workingDirectory -TestResultsFolder $testResultsDirectory -SourcesDirectory $sourcesDirectory
+
+        $resultFiles += Find-Files -SearchPattern "*.trx" -RootFolder $testResultsDirectory
+    }
 
     $publishResultsOption = Convert-String $publishRunAttachments Boolean
 
@@ -158,7 +175,6 @@ if($testAssemblyFiles)
         Write-Host "##vso[task.logissue type=warning;code=002003;]"
         Write-Warning (Get-LocalizedString -Key "No results found to publish.")
     }
-    
 }
 else
 {

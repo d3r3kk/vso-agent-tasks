@@ -13,7 +13,7 @@
   "version": {
     "Major": 1,
     "Minor": 0,
-    "Patch": 34
+    "Patch": 35
   },
   "demands": [
     "vstest"
@@ -121,6 +121,15 @@
       "defaultValue": "",
       "required": false,
       "helpMarkDown": "Other Console options that can be passed to vstest.console.exe. Click on the help link below for more details.",
+      "groupName": "advancedExecutionOptions"
+    },
+    {
+      "name": "runTestAssemblyExclusive",
+      "type": "boolean",
+      "label": "Run Tests in Serial",
+      "defaultValue": "False",
+      "required": false,
+      "helpMarkDown": "Run tests in *serial*. Useful for when you are testing UWP test projects which can only be run one at a time in vstest.",
       "groupName": "advancedExecutionOptions"
     },
     {
