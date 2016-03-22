@@ -82,6 +82,7 @@ else
 
 $codeCoverage = Convert-String $codeCoverageEnabled Boolean
 $runTestsExclusive = Convert-String $runTestAssemblyExclusive Boolean
+Write-Verbose "Run Tests Exclusively = $runTestsExclusive (given $runTestAssemblyExclusive)"
 
 if($testAssemblyFiles)
 {
@@ -97,7 +98,7 @@ if($testAssemblyFiles)
 
     $workingDirectory = $artifactsDirectory
 
-    if ($runTestsExclusive)
+    if ($runTestsExclusive -ne $null -and $runTestsExclusive -eq $true)
     {
         $testAssemblyFiles = $testAssemblyFiles -split ';'
     }
